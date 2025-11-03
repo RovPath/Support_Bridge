@@ -55,5 +55,6 @@ Thumbs.db
 config.json
 .env
 .env.local
-pyproject.toml
 помощ с pyproject. oml
+dist
+.ruff_cache
