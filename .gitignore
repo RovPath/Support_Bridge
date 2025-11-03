@@ -58,3 +58,4 @@ config.json
 помощ с pyproject. oml
 dist
 .ruff_cache
+config.py
