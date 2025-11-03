@@ -59,3 +59,4 @@ config.json
 dist
 .ruff_cache
 config.py
+config

@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 
 async def main():
     load_dotenv()
-    bot = Bot(token=TG_BOT)
+    # bot = Bot(token=TG_BOT)
+    bot = Bot(os.getenv("TG_TOKEN"))
     dp = Dispatcher()
     dp.startup.register(startup)
     dp.shutdown.register(shutdown)
