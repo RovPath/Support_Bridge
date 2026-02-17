@@ -11,3 +11,5 @@ start_kb = InlineKeyboardMarkup(
         [InlineKeyboardButton(text="ℹ️ Статус", callback_data="status")],
     ]
 )
+
+back_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Назад", callback_data="back")]])

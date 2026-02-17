@@ -1,7 +1,6 @@
-# app/managers/bot_manager.py
 import asyncio
 import logging
-from typing import Dict
+from typing import Dict, Tuple
 from aiogram import Bot, Dispatcher, types
 
 logger = logging.getLogger(__name__)
@@ -12,6 +11,8 @@ class BotManager:
         self.main_bot = main_bot
         self.active_bots: Dict[str, dict] = {}  # token → {bot, dp, task, owner_id, username}
         self.notification_targets: Dict[int, int] = {}  # owner_id → target_chat_id
+        # (target_chat_id, forwarded_msg_id) → (user_id, support_bot_token)
+        self.forwarded_message_map: Dict[Tuple[int, int], Tuple[int, str]] = {}
 
     def set_notification_target(self, owner_id: int, chat_id: int):
         self.notification_targets[owner_id] = chat_id
@@ -28,7 +29,6 @@ class BotManager:
 
         @dp.message()
         async def handle_message(message: types.Message):
-            # Если сообщение — команда (начинается с /)
             if message.text and message.text.startswith("/"):
                 command = message.text.split()[0].lower().strip()
                 if command == "/start":
@@ -37,10 +37,8 @@ class BotManager:
                         "Ваше сообщение будет передано в поддержку.",
                         parse_mode="HTML",
                     )
-                # Все остальные команды — игнорируем (не отвечаем и не пересылаем)
                 return
 
-            # Пересылка обычных сообщений
             target_chat_id = self.get_notification_target(owner_id)
 
             user_info = (
@@ -50,6 +48,7 @@ class BotManager:
                 f"🆔 ID: <code>{message.from_user.id}</code>"
             )
 
+            forwarded_msg = None
             try:
                 if message.photo:
                     caption = f"{user_info}\n\n🖼️ Фото"
@@ -57,7 +56,7 @@ class BotManager:
                         caption += f"\n\n💬 Текст к фото:\n{message.caption}"
                     if len(caption) > 1024:
                         caption = caption[:1021] + "..."
-                    await self.main_bot.send_photo(
+                    forwarded_msg = await self.main_bot.send_photo(
                         chat_id=target_chat_id, photo=message.photo[-1].file_id, caption=caption, parse_mode="HTML"
                     )
                 elif message.document:
@@ -66,19 +65,30 @@ class BotManager:
                         caption += f"\n\n💬 Описание:\n{message.caption}"
                     if len(caption) > 1024:
                         caption = caption[:1021] + "..."
-                    await self.main_bot.send_document(
+                    forwarded_msg = await self.main_bot.send_document(
                         chat_id=target_chat_id, document=message.document.file_id, caption=caption, parse_mode="HTML"
                     )
                 elif message.text:
                     full_text = f"{user_info}\n\n💬 Сообщение:\n{message.text}"
-                    await self.main_bot.send_message(chat_id=target_chat_id, text=full_text[:4096], parse_mode="HTML")
+                    forwarded_msg = await self.main_bot.send_message(
+                        chat_id=target_chat_id, text=full_text[:4096], parse_mode="HTML"
+                    )
                 else:
-                    await self.main_bot.send_message(
+                    forwarded_msg = await self.main_bot.send_message(
                         chat_id=target_chat_id,
                         text=f"{user_info}\n\n⚠️ Неподдерживаемый тип: {message.content_type}",
                         parse_mode="HTML",
                     )
+
+                if forwarded_msg:
+                    # Сохраняем связь: (чат поддержки, ID пересланного сообщения) → (пользователь, токен бота)
+                    self.forwarded_message_map[(target_chat_id, forwarded_msg.message_id)] = (
+                        message.from_user.id,
+                        token,
+                    )
+
                 await message.answer("✅ Сообщение отправлено в поддержку!", parse_mode="HTML")
+
             except Exception as e:
                 logger.error(f"Ошибка пересылки для @{bot_username}: {e}", exc_info=True)
                 await message.answer("❌ Не удалось отправить сообщение. Попробуйте позже.", parse_mode="HTML")
@@ -116,3 +126,6 @@ class BotManager:
 
             logger.info(f"Бот @{data['username']} остановлен")
             del self.active_bots[token]
+
+        # Опционально: очистить маппинг
+        self.forwarded_message_map.clear()

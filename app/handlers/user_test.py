@@ -13,9 +13,10 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-# /start
+# ───── /start ─────
 @router.message(CommandStart())
 async def start_menu(message: types.Message):
+    """Главное меню бота"""
     text = (
         "👋 <b>Добро пожаловать в SupportBridge!</b>\n\n"
         "Я помогаю создавать ботов для поддержки и перенаправлять "
@@ -29,14 +30,17 @@ async def start_menu(message: types.Message):
     await message.answer(text=text, parse_mode="HTML", reply_markup=start_kb)
 
 
-# 📬 Получать сюда
+# ───── 📬 Получать сюда ─────
 @router.callback_query(F.data == "notify_here")
 async def notify_here(callback: types.CallbackQuery, bot: Bot, bot_manager):
+    """Привязка текущего чата для получения уведомлений"""
     owner_id = callback.from_user.id
     chat_id = callback.message.chat.id
 
     try:
+        # Проверяем, есть ли бот в чате
         member = await bot.get_chat_member(chat_id=chat_id, user_id=bot.id)
+
         if member.status in ("member", "administrator", "creator"):
             bot_manager.set_notification_target(owner_id, chat_id)
 
@@ -56,7 +60,6 @@ async def notify_here(callback: types.CallbackQuery, bot: Bot, bot_manager):
                 parse_mode="HTML",
                 reply_markup=back_kb,
             )
-
     except TelegramAPIError as e:
         error_text = f"❌ <b>Ошибка при проверке чата</b>\n\n{str(e)}"
         await callback.message.edit_text(error_text, parse_mode="HTML")
@@ -65,9 +68,10 @@ async def notify_here(callback: types.CallbackQuery, bot: Bot, bot_manager):
     await callback.answer()
 
 
-# 🔗 Привязать чат (из ЛС)
+# ───── 🔗 Привязать чат (из ЛС) ─────
 @router.callback_query(F.data == "bind_chat")
 async def bind_chat(callback: types.CallbackQuery, state: FSMContext):
+    """Начало привязки другого чата (из ЛС)"""
     user_id = callback.from_user.id
     chat_id = callback.message.chat.id
 
@@ -77,12 +81,11 @@ async def bind_chat(callback: types.CallbackQuery, state: FSMContext):
             "Пожалуйста, отправьте <b>ID чата или канала</b>, "
             "куда должны приходить обращения.\n\n"
             "ℹ️ <b>Как получить ID:</b>\n"
-            "• Для канала/группы: добавьте бота @Getmyid_bot\n"
+            "• Для канала/группы: добавьте бота @IDCollectors_bot\n"
             "• ID должен быть числом (например: <code>-1001234567890</code>)\n\n"
             "📝 <b>Отправьте ID:</b>"
         )
-
-        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=back_kb)
+        await callback.message.edit_text(text, parse_mode="HTML")
         await state.set_state(ChatBinding.waiting_for_chat_id)
     else:
         text = (
@@ -97,10 +100,13 @@ async def bind_chat(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+# ───── FSM: Обработка ID чата ─────
 @router.message(ChatBinding.waiting_for_chat_id)
 async def process_chat_id(message: types.Message, state: FSMContext, bot: Bot, bot_manager):
+    """Обработка введенного ID чата"""
     user_id = message.from_user.id
 
+    # Парсим ID
     try:
         chat_id = int(message.text.strip())
     except ValueError:
@@ -110,6 +116,7 @@ async def process_chat_id(message: types.Message, state: FSMContext, bot: Bot, b
         )
         return
 
+    # Проверяем чат
     try:
         member = await bot.get_chat_member(chat_id=chat_id, user_id=bot.id)
 
@@ -118,7 +125,7 @@ async def process_chat_id(message: types.Message, state: FSMContext, bot: Bot, b
 
             success_text = (
                 f"✅ <b>Чат успешно привязан!</b>\n\n"
-                f"🆔 <b>ID:</b> <code>{chat_id}</code>\n"
+                f"🆔 ID: <code>{chat_id}</code>\n"
                 f"📬 Все обращения будут приходить сюда."
             )
             await message.answer(success_text, parse_mode="HTML")
@@ -135,7 +142,7 @@ async def process_chat_id(message: types.Message, state: FSMContext, bot: Bot, b
             text = (
                 "❌ <b>Чат не найден</b>\n\n"
                 "Проверьте правильность ID:\n"
-                "• Для групп <b>ID</b> начинается с -100\n"
+                "• Для групп ID начинается с -100\n"
                 "• Убедитесь, что бот добавлен в чат"
             )
         elif "bot is not a member" in error_msg:
@@ -149,9 +156,10 @@ async def process_chat_id(message: types.Message, state: FSMContext, bot: Bot, b
     await state.clear()
 
 
-# ➕ Создать бота
+# ───── ➕ Создать бота ─────
 @router.callback_query(F.data == "create_support_bot")
 async def create_support(callback: types.CallbackQuery, state: FSMContext):
+    """Начало создания бота поддержки"""
     text = (
         "🤖 <b>Создание бота поддержки</b>\n\n"
         "Пожалуйста, пришлите токен вашего Telegram-бота.\n\n"
@@ -174,24 +182,24 @@ async def create_support(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# 📊 Статус
+# ───── 📊 Статус ─────
 @router.callback_query(F.data == "status")
 async def show_status(callback: types.CallbackQuery, bot_manager):
+    """Показ статуса ботов пользователя"""
     user_id = callback.from_user.id
     user_bots = [data for data in bot_manager.active_bots.values() if data["owner_id"] == user_id]
 
     if not user_bots:
         status_text = (
-            "ℹ️ <b>У вас пока нет активных ботов</b>\n\n"
-            "Чтобы начать, нажмите «🤖 Создать бота для принятия сообщений» в главном меню."
+            "ℹ️ <b>У вас пока нет активных ботов</b>\n\n" "Чтобы начать, нажмите «➕ Создать бота» в главном меню."
         )
     else:
         target_chat_id = bot_manager.get_notification_target(user_id)
 
         if target_chat_id == user_id:
-            target_info = "📬 В ваши личные сообщения"
+            target_info = "📬 в ваши личные сообщения"
         else:
-            target_info = f"📬 В чат с <b>ID:<b> <code>{target_chat_id}</code>"
+            target_info = f"📬 в чат с ID: <code>{target_chat_id}</code>"
 
         status_text = (
             f"📊 <b>Статистика</b>\n\n"
@@ -215,9 +223,10 @@ async def show_status(callback: types.CallbackQuery, bot_manager):
     await callback.answer()
 
 
-# 🔄 Обработка токена
+# ───── 🔄 Обработка токена ─────
 @router.message(SupportBotRegistration.waiting_for_token)
 async def process_bot_token(message: types.Message, state: FSMContext, bot: Bot, bot_manager):
+    """Обработка полученного токена бота"""
     token = message.text.strip()
     owner_id = message.from_user.id
 
@@ -233,9 +242,9 @@ async def process_bot_token(message: types.Message, state: FSMContext, bot: Bot,
         # Определяем куда будут приходить сообщения
         target = bot_manager.get_notification_target(owner_id)
         if target == owner_id:
-            location = "📬 Вам в личные сообщения"
+            location = "📬 вам в личные сообщения"
         else:
-            location = f"📬 В чат (ID: <code>{target}</code>)"
+            location = f"📬 в чат (ID: <code>{target}</code>)"
 
         success_text = (
             f"✅ <b>Бот успешно создан!</b>\n\n"
@@ -267,9 +276,10 @@ async def process_bot_token(message: types.Message, state: FSMContext, bot: Bot,
         await state.clear()
 
 
-# ↩️ Назад
+# ───── ↩️ Назад ─────
 @router.callback_query(F.data == "back")
 async def back_callback(callback: types.CallbackQuery):
+    """Возврат в главное меню"""
     text = (
         "👋 <b>Добро пожаловать в SupportBridge!</b>\n\n"
         "Я помогаю создавать ботов для поддержки и перенаправлять "
@@ -280,7 +290,7 @@ async def back_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
-# Обработка ответов администратора
+# ───── Обработка ответов администратора ─────
 @router.message()
 async def handle_admin_reply(message: types.Message, bot_manager):
     """Обработка ответов администратора на сообщения пользователей"""
