@@ -1,4 +1,3 @@
-# run.py
 import os
 import asyncio
 import logging
@@ -15,24 +14,23 @@ if not TG_TOKEN:
 main_bot = Bot(token=TG_TOKEN)
 
 
-async def startup(dispatcher: Dispatcher):
+async def on_startup(dispatcher: Dispatcher):
     print("Starting up...")
-
     bot_manager = BotManager(main_bot)
     dispatcher.workflow_data.update(bot_manager=bot_manager)
 
 
-async def shutdown(dispatcher: Dispatcher):
+async def on_shutdown(dispatcher: Dispatcher):
     print("Shutting down...")
-    bot_manager = dispatcher.get("bot_manager")
+    bot_manager = dispatcher.workflow_data.get("bot_manager")
     if bot_manager:
         await bot_manager.shutdown_all()
 
 
 async def main():
     dp = Dispatcher()
-    dp.startup.register(startup)
-    dp.shutdown.register(shutdown)
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
     dp.include_router(user_router)
     await dp.start_polling(main_bot)
 
