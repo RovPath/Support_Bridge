@@ -2,9 +2,10 @@ import asyncio
 import logging
 from typing import Dict, Tuple, Optional
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.session.aiohttp import AiohttpSession
+from config import USE_PROXY, PROXY_URL
 
 logger = logging.getLogger(__name__)
-
 
 class BotInstance:
     def __init__(self, token: str, owner_id: int, username: str, manager: "BotManager"):
@@ -12,7 +13,11 @@ class BotInstance:
         self.owner_id = owner_id
         self.username = username
         self.manager = manager
-        self.bot = Bot(token=token)
+        if USE_PROXY and PROXY_URL:
+            session = AiohttpSession(proxy=PROXY_URL)
+            self.bot = Bot(token=token, session=session)
+        else:
+            self.bot = Bot(token=token)
         self.dp = Dispatcher()
         self._task: Optional[asyncio.Task] = None
         self._register_handlers()
@@ -21,16 +26,15 @@ class BotInstance:
         @self.dp.message()
         async def handle_user_message(message: types.Message):
             if message.text and message.text.startswith("/"):
-                command = message.text.split()[0].lower()
-                if command == "/start":
+                if message.text.lower() == "/start":
                     await message.answer(
                         "👋 Здравствуйте! Пожалуйста, опишите вашу проблему или задайте вопрос.\n\n"
                         "Ваше сообщение будет передано в поддержку.",
-                        parse_mode="HTML",
+                        parse_mode="HTML"
                     )
                 return
 
-            target_chat_id = self.manager.get_notification_target(self.owner_id)
+            target_chat_id = await self.manager.get_notification_target(self.owner_id)
 
             user_info = (
                 f"📩 Новое обращение из @{self.username}\n\n"
@@ -48,22 +52,127 @@ class BotInstance:
                     if len(caption) > 1024:
                         caption = caption[:1021] + "..."
                     forwarded_msg = await self.manager.main_bot.send_photo(
-                        chat_id=target_chat_id, photo=message.photo[-1].file_id, caption=caption, parse_mode="HTML"
+                        chat_id=target_chat_id,
+                        photo=message.photo[-1].file_id,
+                        caption=caption,
+                        parse_mode="HTML"
                     )
                 elif message.text:
                     full_text = f"{user_info}\n\n💬 Сообщение:\n{message.text}"
                     forwarded_msg = await self.manager.main_bot.send_message(
-                        chat_id=target_chat_id, text=full_text[:4096], parse_mode="HTML"
+                        chat_id=target_chat_id,
+                        text=full_text[:4096],
+                        parse_mode="HTML"
+                    )
+                elif message.video:
+                    caption = f"{user_info}\n\n🎥 Видео"
+                    if message.caption:
+                        caption += f"\n\n💬 Текст к видео:\n{message.caption}"
+                    forwarded_msg = await self.manager.main_bot.send_video(
+                        chat_id=target_chat_id,
+                        video=message.video.file_id,
+                        caption=caption[:1024],
+                        parse_mode="HTML"
+                    )
+                elif message.document:
+                    caption = f"{user_info}\n\n📄 Документ"
+                    if message.caption:
+                        caption += f"\n\n💬 Текст к документу:\n{message.caption}"
+                    forwarded_msg = await self.manager.main_bot.send_document(
+                        chat_id=target_chat_id,
+                        document=message.document.file_id,
+                        caption=caption[:1024],
+                        parse_mode="HTML"
+                    )
+                elif message.audio:
+                    caption = f"{user_info}\n\n🎵 Аудио"
+                    if message.caption:
+                        caption += f"\n\n💬 Текст к аудио:\n{message.caption}"
+                    forwarded_msg = await self.manager.main_bot.send_audio(
+                        chat_id=target_chat_id,
+                        audio=message.audio.file_id,
+                        caption=caption[:1024],
+                        parse_mode="HTML"
+                    )
+                elif message.voice:
+                    caption = f"{user_info}\n\n🎤 Голосовое сообщение"
+                    if message.caption:
+                        caption += f"\n\n💬 Текст к голосовому:\n{message.caption}"
+                    forwarded_msg = await self.manager.main_bot.send_voice(
+                        chat_id=target_chat_id,
+                        voice=message.voice.file_id,
+                        caption=caption[:1024],
+                        parse_mode="HTML"
+                    )
+                elif message.video_note:
+                    text = f"{user_info}\n\n🎬 Видеосообщение (кружок)"
+                    forwarded_msg = await self.manager.main_bot.send_message(
+                        chat_id=target_chat_id,
+                        text=text,
+                        parse_mode="HTML"
+                    )
+                    await self.manager.main_bot.send_video_note(
+                        chat_id=target_chat_id,
+                        video_note=message.video_note.file_id
+                    )
+                elif message.animation:
+                    caption = f"{user_info}\n\n🎬 GIF-анимация"
+                    if message.caption:
+                        caption += f"\n\n💬 Текст к GIF:\n{message.caption}"
+                    forwarded_msg = await self.manager.main_bot.send_animation(
+                        chat_id=target_chat_id,
+                        animation=message.animation.file_id,
+                        caption=caption[:1024],
+                        parse_mode="HTML"
+                    )
+                elif message.sticker:
+                    text = f"{user_info}\n\n🏷️ Стикер"
+                    forwarded_msg = await self.manager.main_bot.send_message(
+                        chat_id=target_chat_id,
+                        text=text,
+                        parse_mode="HTML"
+                    )
+                    await self.manager.main_bot.send_sticker(
+                        chat_id=target_chat_id,
+                        sticker=message.sticker.file_id
+                    )
+                elif message.contact:
+                    text = (
+                        f"{user_info}\n\n📇 Контакт\n"
+                        f"Имя: {message.contact.first_name}\n"
+                        f"Телефон: {message.contact.phone_number}"
+                    )
+                    forwarded_msg = await self.manager.main_bot.send_message(
+                        chat_id=target_chat_id,
+                        text=text[:4096],
+                        parse_mode="HTML"
+                    )
+                elif message.location:
+                    text = (
+                        f"{user_info}\n\n📍 Геопозиция\n"
+                        f"Широта: {message.location.latitude}\n"
+                        f"Долгота: {message.location.longitude}"
+                    )
+                    forwarded_msg = await self.manager.main_bot.send_message(
+                        chat_id=target_chat_id,
+                        text=text[:4096],
+                        parse_mode="HTML"
+                    )
+                elif message.poll:
+                    text = f"{user_info}\n\n📊 Опрос: {message.poll.question}"
+                    forwarded_msg = await self.manager.main_bot.send_message(
+                        chat_id=target_chat_id,
+                        text=text[:4096],
+                        parse_mode="HTML"
                     )
                 else:
                     forwarded_msg = await self.manager.main_bot.send_message(
                         chat_id=target_chat_id,
                         text=f"{user_info}\n\n⚠️ Неподдерживаемый тип: {message.content_type}",
-                        parse_mode="HTML",
+                        parse_mode="HTML"
                     )
 
                 if forwarded_msg:
-                    # Сохраняем связь: (чат поддержки, ID пересланного сообщения) → (пользователь, токен бота)
                     self.manager.forwarded_message_map[(target_chat_id, forwarded_msg.message_id)] = (
                         message.from_user.id,
                         self.token,
@@ -77,7 +186,7 @@ class BotInstance:
 
     async def start_polling(self):
         try:
-            await self.dp.start_polling(self.bot, handle_signals=False)  # Код не закрывается если True
+            await self.dp.start_polling(self.bot, handle_signals=False)
         except asyncio.CancelledError:
             logger.info(f"Polling для @{self.username} отменён")
             raise
@@ -100,25 +209,22 @@ class BotInstance:
     def set_task(self, task: asyncio.Task):
         self._task = task
 
-
 class BotManager:
-    def __init__(self, main_bot: Bot):
+    def __init__(self, main_bot: Bot, db):
         self.main_bot = main_bot
+        self.db = db
         self.active_instances: Dict[str, BotInstance] = {}
-        self.notification_targets: Dict[int, int] = {}
-        # Ключ: (чат_поддержки, ID_пересланного_сообщения) -> (user_id, token_бота)
         self.forwarded_message_map: Dict[Tuple[int, int], Tuple[int, str]] = {}
 
-    def set_notification_target(self, owner_id: int, chat_id: int):
-        self.notification_targets[owner_id] = chat_id
+    async def get_notification_target(self, owner_id: int) -> int:
+        return await self.db.get_notification_target(owner_id)
 
-    def get_notification_target(self, owner_id: int) -> int:
-        return self.notification_targets.get(owner_id, owner_id)
+    async def set_notification_target(self, owner_id: int, chat_id: int):
+        await self.db.set_notification_target(owner_id, chat_id)
 
-    def register_bot(self, token: str, owner_id: int, bot_username: str):
+    async def register_bot(self, token: str, owner_id: int, bot_username: str):
         if token in self.active_instances:
-            raise ValueError("Этот токен уже используется")
-
+            raise ValueError("Токен уже используется")
         instance = BotInstance(token, owner_id, bot_username, self)
         task = asyncio.create_task(instance.start_polling(), name=f"bot_{bot_username}")
         instance.set_task(task)
@@ -136,17 +242,14 @@ class BotManager:
     async def shutdown_all(self):
         if not self.active_instances:
             return
-
         tokens = list(self.active_instances.keys())
         logger.info(f"Останавливаем {len(tokens)} дочерних ботов...")
-
         shutdown_tasks = [self.active_instances[token].stop() for token in tokens]
         if shutdown_tasks:
             results = await asyncio.gather(*shutdown_tasks, return_exceptions=True)
             for i, res in enumerate(results):
                 if isinstance(res, Exception) and not isinstance(res, asyncio.CancelledError):
                     logger.error(f"Ошибка при остановке бота: {res}")
-
         self.active_instances.clear()
         self.forwarded_message_map.clear()
         logger.info("Все дочерние боты остановлены")
