@@ -1,110 +1,103 @@
 # 🤝 Support_Bridge Bot
 
-A powerful asynchronous Telegram bot that creates **child support bots** and forwards user requests to a central chat. Ideal for project support teams, help desks, and multi‑bot management.
+A powerful asynchronous Telegram bot designed to create and manage **child support bots**. It streamlines help desk operations by forwarding all user requests from multiple bots into a single, centralized chat for efficient response management.
 
 ## 📌 Purpose
 
-- **Create support bots** on the fly – register any Telegram bot token.
-- **Bind notification targets** – receive all user messages in a specific group, channel, or private chat.
-- **Forward all media types** – photos, videos, documents, audio, voice, stickers, GIFs, contacts, locations, polls.
-- **Reply to users** – support agents can answer directly from the bound chat (text, photo, video, sticker, etc.).
-- **Multi‑language** – Russian and English interface.
-- **Persistent storage** – SQLite keeps user language preferences and chat bindings.
+The bot simplifies multi-bot administration and support workflows by providing:
+
+* **On-the-fly Bot Creation**: Register and launch new support bots instantly using Telegram bot tokens.
+* **Centralized Communication**: Bind specific groups, channels, or private chats to receive all incoming user requests.
+* **Full Media Support**: Forwards photos, videos, documents, voice messages, stickers, GIFs, locations, and polls.
+* **Seamless Replies**: Support agents can reply to a forwarded message in the central chat to send a response back to the user via the child bot.
+* **Persistence & Localization**: SQLite-driven storage for user preferences and bilingual support (EN/RU).
 
 ## 🛠 Available Commands & Buttons
 
-- `/start` – main menu with inline buttons.
-- `/help` – list of features.
+* `/start` — Open the main menu with interactive inline buttons.
+* `/help` — Display detailed feature lists and usage instructions.
 
-### Inline buttons
-- **📬 Receive here** – bind the current chat as the target for incoming requests.
-- **🔗 Bind chat** – specify another chat ID as the target.
-- **🤖 Create support bot** – add a new child bot using its token.
-- **ℹ️ Status** – show your active support bots and where messages are sent.
+### Inline Menu Options
 
-> **Support agent reply**: any message replied to a forwarded user request will be sent back to the user via the appropriate child bot.
+* **📬 Receive here** — Automatically set the current chat as the target for all incoming requests.
+* **🔗 Bind chat** — Manually specify a target Chat ID for message forwarding.
+* **🤖 Create support bot** — Initialize a new child bot instance by providing its token.
+* **ℹ️ Status** — View active child bots and verify current chat bindings.
+
+---
 
 ## 🚀 Installation & Setup
 
 ### 1. Prerequisites
-- Python 3.11 or higher.
-- [uv](https://docs.astral.sh/uv/) – recommended for fast dependency management.
 
-Install `uv`:
+Ensure you have **Python 3.11** or higher. It is highly recommended to use [uv](https://docs.astral.sh/uv/) for faster dependency resolution.
 
-**Windows (PowerShell)**
-powershell
-```powershell -c "irm https://astral.sh/uv/install.ps1 | iex"```
-Linux / macOS
+### 2. Install uv (Package Manager)
 
-bash
-```curl -LsSf https://astral.sh/uv/install.sh | sh```
-Or via pip
+**Windows (PowerShell):**
 
-bash
-```pip install uv```
-2. Clone the repository
-bash
-git clone https://github.com/RovPath/Support_Bridge.git
-cd Support_Bridge
-3. Configuration
-Create a .env file in the root directory:
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-env
 ```
+
+**Linux / macOS:**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+```
+
+### 3. Configuration
+
+Clone the repository and create a `.env` file in the root directory:
+
+```env
 TG_TOKEN=your_main_bot_token_here
 USE_PROXY=False
 PROXY_URL=socks5://user:pass@host:port
+
 ```
-TG_TOKEN – token of the main Support_Bridge bot.
-USE_PROXY – set to True if you need a proxy (e.g., in restricted networks).
-PROXY_URL – supports socks5://, http://, https:// protocols.
 
-4. Install dependencies
-bash
-```uv pip install -r requirements.txt```
-If you don't have requirements.txt, install manually:
+### 4. Install Dependencies
 
-bash
-```uv pip install aiogram python-dotenv aiosqlite aiohttp-socks```
-5. Launch the bot
-bash
-```uv run run.py```
-Or using standard Python:
+Sync your environment using `uv`:
 
-bash
-```python run.py```
-📁 Project Structure
-Support_Bridge/
-├── .env
-├── run.py                 # Entry point
-├── config.py              # Token, proxy, paths
-├── database/
-│   ├── manager.py         # Async SQLite (language + bindings)
-├── app/
-│   ├── handlers/          # All command and callback handlers
-│   ├── middlewares/       # L10nMiddleware & BotManager
-│   ├── states/            # FSM states (token, chat ID)
-│   └── utils/             # Texts (RU/EN) and helpers
-🧩 How It Works
-Main bot listens for /start and inline buttons.
+```bash
+uv pip install -r requirements.txt
+# Or manual install
+uv pip install aiogram python-dotenv aiosqlite aiohttp-socks
 
-User creates a support bot – sends a token. The main bot spawns a BotInstance that starts polling user messages.
+```
 
-User binds a target chat – all incoming requests from child bots are forwarded there.
+### 5. Launch the Bot
 
-Support agent replies by replying to any forwarded message. The reply is sent back to the original user via the child bot.
+**Using uv (Recommended):**
 
-🌐 Proxy Support
-The main bot and every child bot can use the same proxy.
+```bash
+uv run run.py
 
-Set USE_PROXY=True and provide a valid PROXY_URL.
+```
 
-Works on Windows, Linux, macOS (requires aiohttp-socks).
+**Standard Python:**
 
-❗ Notes
-The main bot token must have no restrictions (can start child bots).
+```bash
+python run.py
 
-Child bots need only the message intent – no extra privileges required.
+```
 
-The bot does not store forwarded messages; only the mapping (chat_id, message_id) is kept temporarily in memory.
+---
+
+## 📁 Project Structure
+
+* `run.py` — Main entry point and execution logic.
+* `config.py` — Environment configuration and path management.
+* `database/` — Async SQLite manager for language settings and chat bindings.
+* `app/handlers/` — Command and callback query logic.
+* `app/middlewares/` — Localization (L10n) and Bot Instance management.
+* `app/states/` — FSM (Finite State Machine) for handling token and ID inputs.
+* `app/utils/` — Helper functions and bilingual text strings.
+
+## 🌐 Proxy Support
+
+The system provides global proxy support for both the main controller and all child instances. Configure `USE_PROXY=True` in your `.env` to enable `socks5`, `http`, or `https` tunneling, ensuring stability in restricted network environments.
